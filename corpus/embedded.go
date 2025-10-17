@@ -17,3 +17,9 @@ var MaleNamesBlob []byte
 
 //go:embed srnames.txt
 var SurnamesBlob []byte
+
+//go:embed fantasy_unisex_first_names.txt
+var FantasyNamesBlob []byte
+
+//go:embed fantasy_unisex_surnames.txt
+var FantasySurnamesBlob []byte
