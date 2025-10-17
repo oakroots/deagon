@@ -1,12 +1,17 @@
 package deagon
 
 import (
-	"strings"
-
 	"github.com/oakroots/deagon/corpus"
 )
 
+type NameType int
+
 const (
+	NameAuto NameType = iota
+	NameMale
+	NameFemale
+	NameFantasy
+
 	// Bitmask for gender (0 = male, 1 = female)
 	maskGender int = 0x0000001
 
@@ -20,36 +25,55 @@ const (
 	totalEntriesFull int = 33554432
 )
 
-// findName extracts a name from the given byte slice by index and fixed length.
-func findName(ix int, data []byte, length int) string {
-	pos := ix * length
-	if pos+length > len(data) {
+func getNamesTyped(index int, t NameType) (string, string) {
+	givenIx := (index & maskGivenName) >> 1
+	surIx := (index & maskSurname) >> 9
+
+	male, female, sur, fanFirst, fanSurn := corpus.Lines()
+
+	switch t {
+	case NameFantasy:
+		first := pick(fanFirst, givenIx)
+		last := pick(fanSurn, surIx)
+
+		return first, last
+	case NameMale:
+		first := pick(male, givenIx)
+		last := pick(sur, surIx)
+
+		return first, last
+	case NameFemale:
+		first := pick(female, givenIx)
+		last := pick(sur, surIx)
+
+		return first, last
+	case NameAuto:
+		fallthrough
+	default:
+		var first string
+		if (index & maskGender) == 0 {
+			first = pick(male, givenIx)
+		} else {
+			first = pick(female, givenIx)
+		}
+
+		last := pick(sur, surIx)
+
+		return first, last
+	}
+}
+
+func pick(ss []string, ix int) string {
+	if len(ss) == 0 {
 		return ""
 	}
-	return strings.TrimSpace(string(data[pos : pos+length]))
+
+	return ss[ix%len(ss)]
 }
 
 // getNames returns the first name and surname for a given index.
 func getNames(index int) (string, string) {
-	var firstname, surname string
-
-	// Extract given name index (shift right by 1 bit)
-	givenIx := (index & maskGivenName) >> 1
-
-	// Extract surname index (shift right by 9 bits)
-	surIx := (index & maskSurname) >> 9
-
-	// Select male or female name blob depending on the gender bit
-	if (index & maskGender) == 0 {
-		firstname = findName(givenIx, corpus.MaleNamesBlob, corpus.NameLength)
-	} else {
-		firstname = findName(givenIx, corpus.FemaleNamesBlob, corpus.NameLength)
-	}
-
-	// Always select surname from surname blob
-	surname = findName(surIx, corpus.SurnamesBlob, corpus.SurnameLength)
-
-	return firstname, surname
+	return getNamesTyped(index, NameAuto)
 }
 
 // getName returns the formatted full name (first name + surname)
@@ -57,4 +81,10 @@ func getNames(index int) (string, string) {
 func getName(index int, formatter Formatter) string {
 	firstname, surname := getNames(index)
 	return formatter.Format(firstname, surname)
+}
+
+func GetNameWithType(index int, formatter Formatter, t NameType) string {
+	first, last := getNamesTyped(index, t)
+
+	return formatter.Format(first, last)
 }
